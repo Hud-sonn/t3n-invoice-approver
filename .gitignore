@@ -1,0 +1,9 @@
+# never commit keys
+.env
+.env.agent
+.env.local
+node_modules/
+target/
+*.wasm
+.DS_Store
+dist/

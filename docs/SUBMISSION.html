@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>T3N Invoice Approver — Bounty Submission</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;max-width:800px;margin:32px auto;padding:0 20px;color:#111;line-height:1.6}
+  h1{font-size:26px;border-bottom:3px solid #111;padding-bottom:8px}
+  h2{font-size:18px;margin-top:28px;border-bottom:1px solid #ccc;padding-bottom:4px}
+  code,pre{background:#f4f4f4;border-radius:4px}
+  pre{padding:10px;overflow-x:auto;font-size:12px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;vertical-align:top}
+  th{background:#eee}
+  .shot{border:2px dashed #888;border-radius:8px;padding:18px;margin:12px 0;background:#fafafa;color:#555;text-align:center}
+  .meta{background:#f0f6ff;border:1px solid #bcd;padding:10px 14px;border-radius:8px;font-size:14px}
+  .warn{background:#fff8e1;border:1px solid #e6c200;padding:10px 14px;border-radius:8px;font-size:13px}
+  @media print{.shot{break-inside:avoid}}
+</style>
+</head>
+<body>
+<h1>T3N Invoice Approver — Enterprise Agent Submission</h1>
+<p><strong>Track:</strong> Useful enterprise agents on Terminal 3, easy to maintain post-challenge.<br>
+<strong>Repo (public):</strong> &lt;PASTE-GITHUB-URL&gt;<br>
+<strong>Agent DID:</strong> <code>did:t3n:3281…bdc</code> &nbsp; <strong>Contract:</strong> <code>z:3281…:invoice-contracts</code> &nbsp; <strong>ID 987</strong> &nbsp; <strong>v0.4.1</strong><br>
+<strong>Card:</strong> <code>https://cn-api.sg.testnet.t3n.terminal3.io/api/agent-card/did:t3n:3281e12c1580a44fb0a5133e5522eb1a4e180bdc</code><br>
+<strong>Running choice:</strong> Continue running via startup program/listing; handover-ready (see §6).</p>
+
+<h2>1. What it does</h2>
+<p><code>review-invoice</code> (no PII) validates totals, vendor allowlist, spending limits. <code>approve-payment</code> charges via Stripe test mode with PII resolved host-side through <code>http-with-placeholders</code> — bank keys never enter prompts, logs, or WASM memory. Secrets live in private KV <code>z:&lt;tid&gt;:secrets</code>; single egress host; every dispatch lands in the audit log. Finance teams approve invoices without pasting sensitive data into AI context.</p>
+
+<h2>2. Why it is maintainable</h2>
+<ul>
+<li>Thin TEE: 2 functions, ~200 lines Rust, same envelope + WIT pattern as reference.</li>
+<li>Policy in one <code>config.ts</code> (limits, allowlist, hosts) — no Rust change for policy tweaks.</li>
+<li>Single-version pin (<code>0.4.1</code>), recorded <code>contract_id</code>, re-grant ACLs on bump.</li>
+<li>Repeatable: <code>docs/LOCAL_TEST.md</code>; weekly ops ~30 min (credits, logs, delegation windows, SDK changelog).</li>
+<li>Stack: TypeScript/Node/Express/Postgres-mirror — no exotic deps.</li>
+</ul>
+
+<h2>3. How to run</h2>
+<pre>npm install
+npx tsx --env-file=.env app/quickstart.ts
+# Connected as: did:t3n:... / TenantClient ready.</pre>
+<p class="warn">Keys in gitignored <code>.env</code> / <code>.env.agent</code> only. Never commit or screenshot full keys.</p>
+
+<h2>4. Screenshots (paste 6 terminal shots, keys redacted)</h2>
+<div class="shot"><strong>Shot 1 — Auth:</strong> quickstart → Connected as + TenantClient ready.<br>[PASTE IMAGE]</div>
+<div class="shot"><strong>Shot 2 — Build:</strong> cargo build Finished + z_tenant_flight.wasm 199K.<br>[PASTE IMAGE]</div>
+<div class="shot"><strong>Shot 3 — Register:</strong> Registered invoice-contracts contract_id 987 + contract.json.<br>[PASTE IMAGE]</div>
+<div class="shot"><strong>Shot 4 — Maps:</strong> secrets/invoices/audit ok + ACLs → 987 + entryGet present (value hidden).<br>[PASTE IMAGE]</div>
+<div class="shot"><strong>Shot 5 — Grant + invoke:</strong> Self-grant written + HTTP 401 (caption: proves egress, fails closed on placeholder).<br>[PASTE IMAGE]</div>
+<div class="shot"><strong>Shot 6 — Card:</strong> host-card URL + curl serving agent-card.json (Invoice Approver).<br>[PASTE IMAGE]</div>
+
+<h2>5. Bugs faced</h2>
+<table>
+<tr><th>Date</th><th>Step</th><th>Symptom</th><th>Cause / Fix</th></tr>
+<tr><td>09-11</td><td>auth</td><td>Missing T3N_API_KEY</td><td>.env not auto-loaded → <code>npx tsx --env-file=.env</code></td></tr>
+<tr><td>09-11</td><td>install</td><td>npm timeout 120s</td><td>Split install with <code>--no-audit --no-fund</code> (21s)</td></tr>
+<tr><td>09-11</td><td>clone</td><td>clone timeout</td><td><code>--depth 1</code> after <code>ls-remote</code></td></tr>
+<tr><td>09-11</td><td>rust</td><td>system rustc 1.75, no wasip2</td><td>rustup stable 1.98.1 + <code>target add wasm32-wasip2</code></td></tr>
+<tr><td>09-11</td><td>test</td><td>wasm exec perm denied</td><td>config pins wasm → <code>--target x86_64-unknown-linux-gnu</code> (7 pass)</td></tr>
+<tr><td>09-11</td><td>maps</td><td>stale ACLs after re-register</td><td><code>create</code> then <code>update { only:[987] }</code>; control-plane entrySet bypasses ACL</td></tr>
+<tr><td>09-11</td><td>invoke</td><td>HTTP 401 on placeholder</td><td>Not a bug — proves grant+egress+TEE; replace with real test key for demo</td></tr>
+<tr><td>09-11</td><td>card</td><td>registry shows agent:(none), curl serves card</td><td>URI vs body steps; curl endpoint is proof</td></tr>
+</table>
+
+<h2>6. Handover / running</h2>
+<p>Prefer <strong>continue running</strong> (startup program/listing). Handover if required: rotate tenant + Stripe keys in <code>secrets</code>, bump version + re-register, re-grant map ACLs + <code>updateMemberDelegation</code>, fresh <code>AGENT_KEY</code> + re-host card, revoke old grants (<code>grants: []</code>), one test approve on testnet. Full steps in <code>docs/HANDOVER.md</code>.</p>
+
+<h2>7. Links</h2>
+<ul>
+<li>Repo: &lt;PASTE-GITHUB-URL&gt;</li>
+<li>Claim: https://go.terminal3.io/adk-community</li>
+<li>Docs: quickstart, set-up-dev-env, write/build/register/invoke-contract, register-agent, member-delegation, common-errors, ai-coding-assistants, llms.txt (docs.terminal3.io)</li>
+</ul>
+<div class="meta">Bundled in repo: <code>app/</code> (quickstart, register, setup-maps, delegate, whoami-agent), <code>z-tenant-invoice/</code> (Rust source + WIT), <code>agent-card.json</code>, <code>docs/</code>. Left on PC (gitignored): <code>node_modules/</code>, <code>target/</code>, <code>*.wasm</code>, <code>.env</code>, <code>.env.agent</code>. Deps: <code>@terminal3/t3n-sdk@5.2.0</code>, <code>tsx</code> (see package.json).</div>
+</body>
+</html>
